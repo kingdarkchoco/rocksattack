@@ -1,0 +1,26 @@
+html, body {
+  width: 100%;
+  height: 100%;
+  background: black;
+  color: white;
+  font-family: Arial, sans-serif;
+}
+
+#container {
+  width: 70vw;  /* This controls the width of the container */
+  height: 100vh;  /* This makes the height cover the full viewport height */
+  margin: auto;
+  margin-top: 0;  /* Ensure it fits to the top */
+  border: 3px solid white;
+  position: relative;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+canvas {
+  display: block;
+  background: black;
+  width: 100%;
+  height: 100%;
+}
