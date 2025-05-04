@@ -3,152 +3,308 @@
 <head>
   <meta charset="UTF-8">
   <title>Alien Ship vs Rocks</title>
-  <link rel="stylesheet" href="style.css">
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      background: black;
+      color: white;
+      font-family: Arial, sans-serif;
+    }
+
+    #container {
+      width: 50vw;  /* This controls the width of the container */
+      height: 100vh;  /* This makes the height cover the full viewport height */
+      margin: auto;
+      margin-top: 0;  /* Ensure it fits to the top */
+      border: 3px solid white;
+      position: relative;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+
+    canvas {
+      display: block;
+      background: black;
+      width: 100%;
+      height: 100%;
+    }
+
+    .overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.9);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      z-index: 10;
+    }
+
+    #title {
+      font-size: 3em;
+      margin-bottom: 20px;
+    }
+
+    button {
+      padding: 10px 20px;
+      font-size: 1.2em;
+      cursor: pointer;
+      margin-top: 10px;
+    }
+
+    #scoreDisplay, #highScoreDisplay, #levelDisplay {
+      position: absolute;
+      top: 10px;
+      font-size: 1.2em;
+      z-index: 5;
+      color: white;
+    }
+
+    #scoreDisplay { left: 10px; }
+    #highScoreDisplay { right: 10px; }
+    #levelDisplay { left: 50%; transform: translateX(-50%); }
+  </style>
 </head>
 <body>
-<canvas id="game"></canvas>
+
+<div id="container">
+  <canvas id="game"></canvas>
+
+  <!-- Start Menu -->
+  <div id="startMenu" class="overlay">
+    <div id="title">Alien Ship vs Rocks</div>
+    <button id="startButton">Start Game</button>
+  </div>
+
+  <!-- Game Over Screen -->
+  <div id="gameOverMenu" class="overlay" style="display: none;">
+    <div id="title">Game Over</div>
+    <div id="finalScore" style="font-size: 2em; margin: 10px 0;"></div>
+    <button id="restartButton">Restart Game</button>
+  </div>
+
+  <div id="scoreDisplay">Score: 0</div>
+  <div id="highScoreDisplay">High Score: 0</div>
+  <div id="levelDisplay">Level: 1</div>
+</div>
 
 <script>
-const canvas = document.getElementById('game');
-const ctx = canvas.getContext('2d');
-canvas.width = window.innerWidth;
-canvas.height = window.innerHeight;
+  const canvas = document.getElementById('game');
+  const ctx = canvas.getContext('2d');
+  const container = document.getElementById('container');
 
-let mouseX = canvas.width / 2;
-let mouseY = canvas.height / 2;
-
-class Ship {
-  constructor() {
-    this.x = mouseX;
-    this.y = mouseY;
-    this.size = 30;
+  function resizeCanvas() {
+    canvas.width = container.clientWidth;
+    canvas.height = window.innerHeight;  // This makes the height cover the full screen
   }
+  resizeCanvas();
+  window.addEventListener('resize', resizeCanvas);
 
-  update() {
-    this.x = mouseX;
-    this.y = mouseY;
-  }
+  const startMenu = document.getElementById('startMenu');
+  const gameOverMenu = document.getElementById('gameOverMenu');
+  const startButton = document.getElementById('startButton');
+  const restartButton = document.getElementById('restartButton');
+  const scoreDisplay = document.getElementById('scoreDisplay');
+  const highScoreDisplay = document.getElementById('highScoreDisplay');
+  const finalScore = document.getElementById('finalScore');
+  const levelDisplay = document.getElementById('levelDisplay');
 
-  draw() {
-    ctx.fillStyle = 'lime';
-    ctx.beginPath();
-    ctx.moveTo(this.x, this.y - this.size);
-    ctx.lineTo(this.x - this.size, this.y + this.size);
-    ctx.lineTo(this.x + this.size, this.y + this.size);
-    ctx.closePath();
-    ctx.fill();
-  }
-}
+  let mouseX = canvas.width / 2;
+  let mouseY = canvas.height / 2;
+  let ship, bullets, rocks, score, level, shootInterval;
+  let gameRunning = false;
+  let highScore = 0;
 
-class Bullet {
-  constructor(x, y) {
-    this.x = x;
-    this.y = y;
-    this.speed = 7;
-    this.size = 5;
-  }
-
-  update() {
-    this.y -= this.speed;
-  }
-
-  draw() {
-    ctx.fillStyle = 'cyan';
-    ctx.fillRect(this.x - this.size/2, this.y, this.size, 10);
-  }
-}
-
-class Rock {
-  constructor() {
-    this.x = Math.random() * canvas.width;
-    this.y = -50;
-    this.radius = 30 + Math.random() * 20;
-    this.speed = 1 + Math.random() * 2;
-  }
-
-  update() {
-    this.y += this.speed;
-  }
-
-  draw() {
-    ctx.fillStyle = 'gray';
-    ctx.beginPath();
-    ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
-    ctx.fill();
-  }
-}
-
-let ship = new Ship();
-let bullets = [];
-let rocks = [];
-let score = 0;
-
-let shootInterval = 0;
-
-function gameLoop() {
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-  ctx.drawImage(background, 0, 0, canvas.width, canvas.height);
-
-  ship.update();
-  ship.draw();
-
-  // Shoot bullets
-  shootInterval++;
-  if (shootInterval % 15 === 0) {
-    bullets.push(new Bullet(ship.x, ship.y - 20));
-  }
-
-  bullets.forEach((b, i) => {
-    b.update();
-    b.draw();
-    if (b.y < 0) bullets.splice(i, 1);
+  // Update the mouse position
+  canvas.addEventListener('mousemove', (event) => {
+    const rect = canvas.getBoundingClientRect();
+    mouseX = event.clientX - rect.left;
+    mouseY = event.clientY - rect.top;
   });
 
-  if (Math.random() < 0.02) {
-    rocks.push(new Rock());
+  class Ship {
+    constructor() {
+      this.x = mouseX;
+      this.y = mouseY;
+      this.size = 20;
+    }
+
+    update() {
+      this.x = Math.max(Math.min(mouseX, canvas.width - this.size), this.size);
+      this.y = Math.max(Math.min(mouseY, canvas.height - this.size), this.size);
+    }
+
+    draw() {
+      ctx.fillStyle = 'lime';
+      ctx.beginPath();
+      ctx.moveTo(this.x, this.y - this.size);
+      ctx.lineTo(this.x - this.size, this.y + this.size);
+      ctx.lineTo(this.x + this.size, this.y + this.size);
+      ctx.closePath();
+      ctx.fill();
+    }
   }
 
-  rocks.forEach((r, ri) => {
-    r.update();
-    r.draw();
+  class Bullet {
+    constructor(x, y) {
+      this.x = x;
+      this.y = y;
+      this.speed = 6;
+      this.size = 5;
+    }
 
-    // Collision with bullets
-    bullets.forEach((b, bi) => {
-      let dx = r.x - b.x;
-      let dy = r.y - b.y;
-      let distance = Math.sqrt(dx * dx + dy * dy);
-      if (distance < r.radius) {
-        rocks.splice(ri, 1);
-        bullets.splice(bi, 1);
-        score += 10; // Increase score when rock is hit
+    update() {
+      this.y -= this.speed;
+    }
+
+    draw() {
+      ctx.fillStyle = 'cyan';
+      ctx.fillRect(this.x - this.size / 2, this.y, this.size, 10);
+    }
+  }
+
+  class Rock {
+    constructor(isBig = false) {
+      this.isBig = isBig;  // Flag to check if it's a big rock
+      this.x = Math.random() * canvas.width;
+      this.y = -40;
+      this.radius = this.isBig ? 30 + Math.random() * 20 : 16 + Math.random() * 8;  // Bigger rocks have a larger radius
+      this.hitPoints = this.isBig ? 3 : 1;  // Big rocks need 3 hits to destroy, small rocks need 1
+      this.speed = this.calculateSpeed();  // Calculate speed based on size
+      this.color = this.getColorByLevel(level);
+    }
+
+    getColorByLevel(level) {
+      const colors = ['gray', 'darkorange', 'red', 'purple', 'gold', 'blue', 'green', 'white'];
+      return colors[(level - 1) % colors.length];
+    }
+
+    calculateSpeed() {
+      if (this.isBig) {
+        // Slower speed for bigger rocks
+        return 1 + Math.random() * 0.5 + level * 0.2;
+      } else {
+        // Faster speed for smaller rocks
+        return 2 + Math.random() * 1 + level * 0.5;
       }
+    }
+
+    update() {
+      this.y += this.speed;
+    }
+
+    draw() {
+      ctx.fillStyle = this.color;
+      ctx.beginPath();
+      ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    hit() {
+      this.hitPoints--;
+      if (this.hitPoints <= 0) return true;  // Return true if the rock should be destroyed
+      return false;
+    }
+
+    // Calculate score based on size and level
+    calculateScore() {
+      let baseScore = this.isBig ? 15 + (this.radius - 30) / 3 : 10;
+      // Increase score based on the current level
+      return Math.floor(baseScore * (1 + level * 0.1));  // 10% increase per level
+    }
+  }
+
+  function initGame() {
+    ship = new Ship();
+    bullets = [];
+    rocks = [];
+    score = 0;
+    level = 1;
+    shootInterval = 0;
+    scoreDisplay.textContent = "Score: 0";
+    levelDisplay.textContent = "Level: 1";
+    gameRunning = true;
+    gameLoop();
+  }
+
+  function updateScore() {
+    scoreDisplay.textContent = "Score: " + score;
+    const newLevel = Math.floor(score / 500) + 1;
+    if (newLevel !== level) {
+      level = newLevel;
+      levelDisplay.textContent = "Level: " + level;
+      for (let i = 0; i < 3; i++) rocks.push(new Rock());
+    }
+  }
+
+  function gameLoop() {
+    if (!gameRunning) return;
+
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    ship.update();
+    ship.draw();
+
+    shootInterval++;
+    if (shootInterval % 15 === 0) {
+      bullets.push(new Bullet(ship.x, ship.y - 20));
+    }
+
+    bullets.forEach((b, i) => {
+      b.update();
+      b.draw();
+      if (b.y < 0) bullets.splice(i, 1);
     });
 
-    // If rock goes off screen
-    if (r.y > canvas.height) {
-      rocks.splice(ri, 1);
+    if (Math.random() < 0.02 + level * 0.005) {
+      const isBigRock = Math.random() < 0.2;  // 20% chance for big rocks
+      rocks.push(new Rock(isBigRock));
     }
+
+    rocks.forEach((r, ri) => {
+      r.update();
+      r.draw();
+
+      bullets.forEach((b, bi) => {
+        let dx = r.x - b.x;
+        let dy = r.y - b.y;
+        if (dx * dx + dy * dy < r.radius * r.radius) {
+          if (r.hit()) {
+            score += r.calculateScore();
+            rocks.splice(ri, 1);
+            updateScore();
+          }
+          bullets.splice(bi, 1);
+        }
+      });
+    });
+
+    rocks = rocks.filter(r => r.y < canvas.height);  // Remove rocks that go off-screen
+    requestAnimationFrame(gameLoop);
+  }
+
+  // Add event listener for the start button
+  startButton.addEventListener('click', () => {
+    startMenu.style.display = 'none';  // Hide the start menu
+    initGame();  // Initialize the game
   });
 
-  // Draw score
-  ctx.fillStyle = 'white';
-  ctx.font = '24px Arial';
-  ctx.fillText('Score: ' + score, 20, 30);
-
-  requestAnimationFrame(gameLoop);
-}
-
-canvas.addEventListener('mousemove', (e) => {
-  mouseX = e.clientX;
-  mouseY = e.clientY;
-});
-
-const background = new Image();
-background.src = 'assets/background.jpg'; // Load background image
-
-background.onload = () => {
-  gameLoop();
-};
+  // Add event listener for the restart button to restart the game
+  restartButton.addEventListener('click', () => {
+    gameOverMenu.style.display = 'none';  // Hide the game over menu
+    initGame();  // Restart the game
+  });
 
 </script>
 </body>
