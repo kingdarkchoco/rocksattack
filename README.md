@@ -21,4 +21,3 @@ A simple browser-based game where you control an alien spaceship that auto-shoot
 - `background.jpg` in the `assets/` folder – used as the game's background.
 
 ## 📂 File Structure
-
